@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Star Collector Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #181818; /* Dark background */
+      color: #e0e0e0; /* Light text color for contrast */
+    }
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      background-color: #333333; /* Dark canvas background */
+      border: 5px solid #444444; /* Border around the canvas */
+    }
+    .sidebar {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background-color: #2c2c2c; /* Dark sidebar background */
+      padding: 15px;
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+      width: 200px;
+      color: #e0e0e0; /* Light text color */
+    }
+    .sidebar h3 {
+      margin-top: 0;
+      color: #ff6347; /* Accent color for headings */
+    }
+    .sidebar p {
+      font-size: 16px;
+      margin: 5px 0;
+    }
+    .sidebar button {
+      background-color: #ff6347;
+      color: #fff;
+      padding: 10px;
+      border: none;
+      cursor: pointer;
+      width: 100%;
+      font-size: 16px;
+      margin-top: 10px;
+      border-radius: 5px;
+    }
+    .sidebar button:disabled {
+      background-color: #666;
+      cursor: not-allowed;
+    }
+    .star {
+      width: 20px;
+      height: 20px;
+      background-color: gold; /* Bright star color */
+      position: absolute;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <h3>Challenges</h3>
+    <p id="challenge">Challenge 1: Collect 5 Stars</p>
+    <p id="starsCollected">Stars Collected: 0</p>
+    <p id="tokens">Tokens: 0</p>
+    <button id="purchaseButton" onclick="purchaseUpgrade()">Purchase Upgrade (5 Tokens)</button>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const player = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      width: 30,
+      height: 30,
+      speed: 1, // Reduced speed for slower movement
+      score: 0,
+      tokens: 0
+    };
+
+    const stars = [];
+    const obstacles = [];
+    let currentChallenge = 1;
+    let starsNeededForChallenge = 5;
+    const keysPressed = {}; // Track keys being pressed (e.g., 'w', 'a', 's', 'd')
+
+    // Create a star within the borders of the canvas
+    function createStar() {
+      const star = {
+        x: Math.random() * (canvas.width - 40) + 20, // Ensure the star spawns within the borders (leaving room for its size)
+        y: Math.random() * (canvas.height - 40) + 20, // Same here for the y-coordinate
+        width: 20,
+        height: 20
+      };
+      stars.push(star);
+    }
+
+    // Create obstacles that will reset the game when hit
+    function createObstacle(obstacleCount) {
+      obstacles.length = 0; // Clear any previous obstacles
+      for (let i = 0; i < obstacleCount; i++) {
+        const obstacle = {
+          x: Math.random() * (canvas.width - 60) + 30, // Random position within the canvas
+          y: Math.random() * (canvas.height - 60) + 30, // Same here for the y-coordinate
+          width: 50,  // Larger width for the obstacle
+          height: 50  // Larger height for the obstacle
+        };
+        obstacles.push(obstacle);
+      }
+    }
+
+    // Draw the player (now using 🌐 emoji)
+    function drawPlayer() {
+      ctx.font = '30px Arial'; // Set the font size for the emoji
+      ctx.textAlign = 'center'; // Center the emoji horizontally
+      ctx.textBaseline = 'middle'; // Center the emoji vertically
+      ctx.fillText('🌐', player.x, player.y); // Draw the emoji at the player's position
+    }
+
+    // Draw stars (now using ⭐ emoji)
+    function drawStars() {
+      stars.forEach(star => {
+        ctx.font = '30px Arial'; // Set the font size for the emoji
+        ctx.textAlign = 'center'; // Center the emoji horizontally
+        ctx.textBaseline = 'middle'; // Center the emoji vertically
+        ctx.fillText('⭐', star.x, star.y); // Draw the emoji at the star's position
+      });
+    }
+
+    // Draw obstacles (now using 💣 emoji)
+    function drawObstacles() {
+      obstacles.forEach(obstacle => {
+        ctx.font = '40px Arial'; // Increased font size for the obstacle (💣 emoji)
+        ctx.textAlign = 'center'; // Center the emoji horizontally
+        ctx.textBaseline = 'middle'; // Center the emoji vertically
+        ctx.fillText('💣', obstacle.x, obstacle.y); // Draw the emoji at the obstacle's position
+      });
+    }
+
+    // Check if the player collides with a star
+    function checkCollision(starIndex) {
+      const star = stars[starIndex];
+      const dist = Math.hypot(player.x - star.x, player.y - star.y);
+      return dist < (player.width / 2 + star.width / 2);
+    }
+
+    // Check if the player collides with an obstacle
+    function checkObstacleCollision() {
+      for (let i = 0; i < obstacles.length; i++) {
+        const obstacle = obstacles[i];
+        if (player.x + player.width / 2 > obstacle.x &&
+            player.x - player.width / 2 < obstacle.x + obstacle.width &&
+            player.y + player.height / 2 > obstacle.y &&
+            player.y - player.height / 2 < obstacle.y + obstacle.height) {
+          return true; // Player hit an obstacle
+        }
+      }
+      return false;
+    }
+
+    // Update the sidebar with player stats
+    function updateSidebar() {
+      document.getElementById('starsCollected').innerText = `Stars Collected: ${player.score}`;
+      document.getElementById('tokens').innerText = `Tokens: ${player.tokens}`;
+      const challengeDetails = getChallengeDetails(currentChallenge);
+      document.getElementById('challenge').innerText = `Challenge ${currentChallenge}: Collect ${challengeDetails.starsRequired} Stars`;
+      // Disable purchase button if the player doesn't have enough tokens
+      document.getElementById('purchaseButton').disabled = player.tokens < 5;
+    }
+
+    // This function will generate challenge requirements based on the challenge number
+    function getChallengeDetails(challengeNumber) {
+      let starsRequired = challengeNumber * 5; // Increase stars required per challenge
+      return { challenge: `Collect ${starsRequired} Stars`, starsRequired };
+    }
+
+    // Calculate the number of obstacles based on the challenge level
+    function calculateObstacles() {
+      if (currentChallenge >= 1 && currentChallenge <= 5) {
+        return 1;  // 1 obstacle for challenges 1-5
+      } else if (currentChallenge >= 6 && currentChallenge <= 10) {
+        return 2;  // 2 obstacles for challenges 6-10
+      } else if (currentChallenge >= 11 && currentChallenge <= 20) {
+        return 3;  // 3 obstacles for challenges 11-20
+      } else if (currentChallenge >= 21 && currentChallenge <= 30) {
+        return 4;  // 4 obstacles for challenges 21-30
+      } else if (currentChallenge >= 31 && currentChallenge <= 40) {
+        return 5;  // 5 obstacles for challenges 31-40
+      } else if (currentChallenge >= 41 && currentChallenge <= 50) {
+        return 6;  // 6 obstacles for challenges 41-50
+      } else if (currentChallenge >= 51 && currentChallenge <= 60) {
+        return 7;  // 7 obstacles for challenges 51-60
+      } else if (currentChallenge >= 61 && currentChallenge <= 70) {
+        return 8;  // 8 obstacles for challenges 61-70
+      } else if (currentChallenge >= 71 && currentChallenge <= 80) {
+        return 10; // 10 obstacles for challenges 71-80
+      } else if (currentChallenge >= 81 && currentChallenge <= 90) {
+        return 12; // 12 obstacles for challenges 81-90
+      } else if (currentChallenge >= 91 && currentChallenge <= 100) {
+        return 15; // 15 obstacles for challenges 91-100
+      }
+      return 1;  // Default to 1 obstacle if no range is matched
+    }
+
+    // Check if the player completed the current challenge
+    function nextChallenge() {
+      const challengeDetails = getChallengeDetails(currentChallenge);
+      if (player.score >= challengeDetails.starsRequired) {
+        let tokensAwarded = 1; // Default to 1 token for challenges 1-5
+
+        // Adjust token rewards based on challenge ranges
+        if (currentChallenge >= 6 && currentChallenge <= 10) {
+          tokensAwarded = 2;
+        } else if (currentChallenge >= 11 && currentChallenge <= 20) {
+          tokensAwarded = 3;
+        } else if (currentChallenge >= 21 && currentChallenge <= 30) {
+          tokensAwarded = 4;
+        } else if (currentChallenge >= 31 && currentChallenge <= 40) {
+          tokensAwarded = 5;
+        } else if (currentChallenge >= 41 && currentChallenge <= 50) {
+          tokensAwarded = 6;
+        } else if (currentChallenge >= 51 && currentChallenge <= 60) {
+          tokensAwarded = 7;
+        } else if (currentChallenge >= 61 && currentChallenge <= 70) {
+          tokensAwarded = 8;
+        } else if (currentChallenge >= 71 && currentChallenge <= 80) {
+          tokensAwarded = 9;
+        } else if (currentChallenge >= 81 && currentChallenge <= 90) {
+          tokensAwarded = 10;
+        } else if (currentChallenge > 90) {
+          tokensAwarded = 12;
+        }
+
+        player.tokens += tokensAwarded;  // Award tokens based on the challenge
+        if (currentChallenge < 100) { // Continue challenges until Challenge 100
+          currentChallenge++;
+        }
+        player.score = 0;  // Reset score for the new challenge
+        createObstacle(calculateObstacles()); // Adjust obstacles based on challenge
+      }
+    }
+
+    // Handle keydown and keyup events for continuous movement and diagonal support
+    function handleKeydown(event) {
+      keysPressed[event.key] = true;
+    }
+
+    function handleKeyup(event) {
+      delete keysPressed[event.key];
+    }
+
+    // Update the player's position based on the keys pressed
+    function movePlayer() {
+      const moveX = (keysPressed['a'] || keysPressed['A']) ? -player.speed : (keysPressed['d'] || keysPressed['D']) ? player.speed : 0;
+      const moveY = (keysPressed['w'] || keysPressed['W']) ? -player.speed : (keysPressed['s'] || keysPressed['S']) ? player.speed : 0;
+
+      // Update player position based on key input
+      if (player.x + moveX > 5 && player.x + moveX < canvas.width - 5) {
+        player.x += moveX;
+      }
+      if (player.y + moveY > 5 && player.y + moveY < canvas.height - 5) {
+        player.y += moveY;
+      }
+    }
+
+    // Handle the purchase of the upgrade
+    function purchaseUpgrade() {
+      if (player.tokens >= 5) {
+        player.tokens -= 5; // Deduct 5 tokens
+        player.width += 15; // Increase player size more significantly (was 5 before)
+        player.height += 15; // Keep the player circular
+        updateSidebar(); // Update the sidebar
+      }
+    }
+
+    // Reset the game when the player dies (hit an obstacle)
+    function resetGame() {
+      alert("You died!"); // Show a pop-up with the "You died!" message
+      player.x = canvas.width / 2;
+      player.y = canvas.height / 2;
+      player.score = 0;
+      player.tokens = 0;
+      stars.length = 0; // Clear stars
+      obstacles.length = 0; // Clear obstacles
+      createStar(); // Create a new star
+      createObstacle(calculateObstacles()); // Create new obstacles
+      currentChallenge = 1; // Reset challenge to 1
+    }
+
+    // Main game loop
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPlayer();
+      drawStars();
+      drawObstacles();
+      updateSidebar();
+      nextChallenge();
+
+      movePlayer();
+
+      for (let i = 0; i < stars.length; i++) {
+        if (checkCollision(i)) {
+          stars.splice(i, 1);
+          player.score++;
+          break;  // Prevent skipping stars when multiple stars are close
+        }
+      }
+
+      if (stars.length < getChallengeDetails(currentChallenge).starsRequired) {
+        createStar();
+      }
+
+      if (checkObstacleCollision()) {
+        resetGame(); // Reset the game if player hits an obstacle
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Event listeners for keydown and keyup
+    document.addEventListener('keydown', handleKeydown);
+    document.addEventListener('keyup', handleKeyup);
+
+    // Initially create a star and some obstacles
+    createStar();
+    createObstacle(calculateObstacles());
+
+    gameLoop();
+  </script>
+
+</body>
+</html>
